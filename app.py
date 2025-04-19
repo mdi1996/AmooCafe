@@ -1,21 +1,19 @@
 from flask import Flask, request
 from telegram import Bot, Update
-from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
+from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 import logging
 import random
 import os
 
-TOKEN = '7876652380:AAHxPYfrN-fkElbhKAP7Ajp1wInw91LRSZ4'
-
-app = Flask(__name__)
+TOKEN = '7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU'  # توکن ربات خودته
 bot = Bot(token=TOKEN)
+app = Flask(__name__)
+dispatcher = Dispatcher(bot, None, workers=0)
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# دستورات ربات
 def start(update, context):
     update.message.reply_text(
         "سلام عموجون!\n\nمنوی کافه:\n- خوبی\n- چخبر\n- دلتنگم\n- دوستت دارم\n- خوابم میاد\n- عمو جون"
@@ -103,22 +101,22 @@ def handle_message(update, context):
             update.message.reply_text(recipes[item])
             break
 
-from telegram.ext import Updater
+# وصل کردن فرمان‌ها
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
-updater = Updater(token=TOKEN, use_context=True)
-dp = updater.dispatcher
-dp.add_handler(CommandHandler("start", start))
-dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
-@app.route('/' + TOKEN, methods=['POST'])
-def respond():
+# آدرس مخصوص دریافت پیام‌ها از تلگرام
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
-    dp.process_update(update)
+    dispatcher.process_update(update)
     return 'ok'
 
+# صفحه اصلی
 @app.route('/')
 def index():
     return 'ربات با موفقیت اجرا شد.'
 
+# اجرا
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
