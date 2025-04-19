@@ -1,0 +1,46 @@
+from flask import Flask, request
+from telegram import Bot, Update
+from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
+import logging
+import random
+import os
+
+TOKEN = '7876652380:AAHxPYfrN-fkElbhKAP7Ajp1wInw91LRSZ4'
+APP_URL = f'https://YOUR_HEROKU_APP_NAME.herokuapp.com/{TOKEN}'  # آدرس اپت رو جایگزین کن
+
+app = Flask(__name__)
+bot = Bot(token=TOKEN)
+
+# Set up logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Webhook dispatcher
+from telegram.ext import Dispatcher
+dispatcher = Dispatcher(bot, None, workers=0)
+
+def start(update, context):
+    update.message.reply_text("سلام عموجون!\n\nمنوی کافه:\n- خوبی\n- چخبر\n- دلتنگم\n- دوستت دارم\n- خوابم میاد\n- عمو جون")
+
+def handle_message(update, context):
+    text = update.message.text.strip().lower()
+    # همون کد جواب‌های خنده‌دار تو اینجا باشه
+    # (برای خلاصه‌سازی، این قسمت رو کوتاه نگه‌داشتم چون تغییر نکرده)
+
+# Add handlers
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+@app.route(f"/{TOKEN}", methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
+
+@app.route('/')
+def index():
+    return 'ربات فعاله عموجون!'
+
+if __name__ == '__main__':
+    bot.set_webhook(APP_URL)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
