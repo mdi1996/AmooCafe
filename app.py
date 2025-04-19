@@ -1,26 +1,38 @@
 from flask import Flask, request
 from telegram import Bot, Update, Message
-from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
+from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher, Updater
 import logging
 import random
 import os
 
+# توکن ربات
 TOKEN = '7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU'
 
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
+# تنظیمات لاگ‌گیری
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# تابع /start
 def start(update, context):
-    update.message.reply_text(
-        "سلام عموجون!\n\nمنوی کافه:\n- خوبی\n- چخبر\n- دلتنگم\n- دوستت دارم\n- خوابم میاد\n- عمو جون"
-    )
+    items = [
+        "سلام", "چخبر", "کسی آنلاین نیست", "عمو جون", "خداحافظ",
+        "گشنمه", "منوی کافه", "اصل", "بیا پیوی", "بیا پی وی",
+        'کافه لاته', 'موهیتو نعنایی', 'کافه گلاسه', 'چای لاته', 'هات چاکلت',
+        'قهوه امریکانو', 'آیس کافی', 'اسموتی توت‌فرنگی', 'چای ماسالا',
+        'لیموناد', 'فرپچینو', 'میلک‌شیک شکلاتی', 'چای سبز لاته', 'آیس تی',
+        'اسموتی موز و بادام', 'قهوه ترک', 'چای ماته', 'شربت زعفران',
+        'آب پرتقال تازه', 'میلک‌شیک وانیلی'
+    ]
+    list_text = "کلیدواژه‌ها و نوشیدنی‌های کافه:\n" + "\n".join(f"- {item}" for item in items)
+    update.message.reply_text(list_text)
 
+# دیکشنری نوشیدنی‌ها و طرز تهیه‌شون
 recipes = {
     'کافه لاته': 'اسپرسو را با شیر گرم مخلوط کنید و روی آن فوم شیر بریزید.',
     'موهیتو نعنایی': 'نعناع تازه، لیمو، شکر و آب گازدار را ترکیب کنید.',
@@ -44,21 +56,19 @@ recipes = {
     'میلک‌شیک وانیلی': 'بستنی وانیلی و شیر را مخلوط کنید.'
 }
 
+# تابع پاسخ‌دهی به پیام‌ها
 def handle_message(update, context):
     message: Message = update.message
     text = message.text.strip().lower()
 
-    # پاسخ به "اصل" (فقط وقتی به‌تنهایی اومده باشه)
     if "اصل" in text.split():
         message.reply_text("شما مامور ثبت احوالی؟ 😂😐")
         return
 
-    # پاسخ به "بیا پیوی" در هر شرایطی
     if any(phrase in text for phrase in ["بیا پیوی", "بیا پی وی"]):
         message.reply_text("پیوی خطرناکه حسن😂🗿")
         return
 
-    # از اینجا به بعد فقط اگه پیام ریپلای نشده باشه
     if message.reply_to_message:
         return
 
@@ -98,13 +108,13 @@ def handle_message(update, context):
                 message.reply_text(recipe)
                 break
 
-from telegram.ext import Updater
-
+# راه‌اندازی دیسپچر و هندلرها
 updater = Updater(token=TOKEN, use_context=True)
 dp = updater.dispatcher
 dp.add_handler(CommandHandler("start", start))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
+# روت‌های فلَسک
 @app.route('/' + TOKEN, methods=['POST'])
 def respond():
     update = Update.de_json(request.get_json(force=True), bot)
