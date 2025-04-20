@@ -1,7 +1,9 @@
 import re
 from flask import Flask, request
 import telegram
-from telegram.ext import Dispatcher, MessageHandler, Filters
+from telegram.ext import Dispatcher, MessageHandler, Filters, CommandHandler
+import random
+from telegram.error import TelegramError
 
 TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
 bot = telegram.Bot(token=TOKEN)
@@ -142,8 +144,13 @@ def handle_message(update, context):
     response = get_response(text)
     context.bot.send_message(chat_id=chat_id, text=response)
 
+# هندلر خطا
+def error_handler(update, context):
+    print(f"Error: {context.error}")
+
 # تنظیم هندلر
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+dispatcher.add_error_handler(error_handler)  # اضافه کردن هندلر خطا
 
 # webhook endpoint
 @app.route(f"/{TOKEN}", methods=["POST"])
