@@ -105,6 +105,10 @@ def handle_message(update, context):
     text = update.message.text
     chat_id = update.message.chat_id
     response = get_response(text)
+
+    print("پیام کاربر:", text)
+    print("پاسخ ربات:", response)
+
     if response:
         context.bot.send_message(chat_id=chat_id, text=response)
 
