@@ -9,7 +9,7 @@ TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
 bot = telegram.Bot(token=TOKEN)
 
 app = Flask(__name__)
-dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
+dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
 
 # دیتای نوشیدنی‌ها
 beverages = {
@@ -151,6 +151,11 @@ def error_handler(update, context):
 # تنظیم هندلر
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_error_handler(error_handler)  # اضافه کردن هندلر خطا
+
+# مسیر ساده برای رفع خطای 404
+@app.route("/")
+def home():
+    return "کافه آماده است!"
 
 # webhook endpoint
 @app.route(f"/{TOKEN}", methods=["POST"])
