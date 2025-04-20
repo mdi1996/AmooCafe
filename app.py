@@ -1,4 +1,5 @@
 import re
+from flask import Flask
 
 # دیکشنری کلیدواژه‌ها و پاسخ‌ها
 responses = {
@@ -118,8 +119,13 @@ def get_response(user_input):
 
     return "متاسفانه من پاسخی برای این درخواست ندارم."
 
-# تست
-print(get_response("صبح بخیر"))  # باید جواب مربوط به صبح بخیر را بدهد
-print(get_response("خداحافظ؟"))  # باید جواب خداحافظ را بدهد
-print(get_response("منو نوشیدنی"))  # باید لیست نوشیدنی‌ها را نشان دهد
-print(get_response("اسپرسو"))  # باید طرز تهیه اسپرسو را بدهد
+# اجرای اپلیکیشن Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "کافه آنلاین آماده است!"
+
+# پورت 5000 رو به اپلیکیشن Flask اضافه می‌کنیم
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
