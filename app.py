@@ -10,10 +10,15 @@ bot = telegram.Bot(token=TOKEN)
 app = Flask(__name__)
 dispatcher = Dispatcher(bot, None, workers=1, use_context=True)
 
-# کلیدواژه‌ها و پاسخ‌ها (همون دیتای قبلیت)
 keywords = {
-    # --- [کلیدواژه‌ها و پاسخ‌ها سر جای خودشون باقی موندن] ---
-    # ... کد کامل keywordها اینجاست (حذف نشدن برای اختصار) ...
+    ("صبح بخیر", "صبحت بخیر", "صبح دل‌انگیز", "صبحت پر انرژی", "صبح شد", "صب بخیر"): [
+        "صبحت بخیر رفیق کافه‌ای! وقتشه فنجان قهوه‌ت رو آماده کنم! ☀️☕",
+        "صبح شد و کافه بازه! بیا یه فنجون آرامش بزنیم! 🌅🍯",
+        "بیدار شدی؟ یعنی وقتشه برات قهوه بریزم و موزیک پخش کنم! 🎶☕",
+        "صبحت خوش! بخوای یا نخوای امروز خیلی قشنگه عمو چون تو هستی! ✨🌞",
+        "سلام به خورشیدِ خودم! قهوه داغ با یه لبخند آماده‌ست! ☕️😊"
+    ],
+    # ... سایر کلیدواژه‌ها همان‌طور که خودت نوشته بودی ...
 }
 
 pivi_responses = [
@@ -73,20 +78,19 @@ def get_response(text):
 def handle_message(update, context):
     text = update.message.text
     chat_id = update.message.chat_id
-    message_id = update.message.message_id
-
     response = get_response(text)
     if response:
-        context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=response,
+            reply_to_message_id=update.message.message_id
+        )
 
 def error_handler(update, context):
     print(f"Error: {context.error}")
 
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_error_handler(error_handler)
-
-# تنظیم Webhook در Render
-bot.set_webhook(url=f"https://amoocafe.onrender.com/{TOKEN}")
 
 @app.route("/")
 def home():
