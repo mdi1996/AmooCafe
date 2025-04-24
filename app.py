@@ -1,16 +1,34 @@
+import os
 import re
+import random
 from flask import Flask, request
 import telegram
 from telegram.ext import Dispatcher, MessageHandler, Filters
-import random
 
-TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
+# --- راه‌اندازی ---
+TOKEN = os.getenv("BOT_TOKEN") or "توکن_ربات_اینجا"
 bot = telegram.Bot(token=TOKEN)
-
 app = Flask(__name__)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 
-# --- کلمات کلیدی و پاسخ‌ها ---
+# --- واکنش‌ها ---
+emoji_reactions = {
+    'سلام': '🫡',
+    'عشق': '❤️',
+    'دوست': '❤️',
+    'رفیق': '❤️',
+    'خوبی': '🥰',
+    'چخبر': '🤔',
+    'حبیبه': '🩵',
+    'ماهان': '😎',
+    'ایلار': '💜',
+    'آیدا': '🧡',
+    'ساحل': '💛',
+    'عمو': '☕',
+    'ابول': '😁',
+}
+
+# --- پاسخ‌های متنی ---
 keywords = {
     ("صبح بخیر", "صبحت بخیر", "صبح دل‌انگیز", "صبحت پر انرژی", "صبح شد", "صب بخیر"): [
         "صبحت بخیر رفیق کافه‌ای! وقتشه فنجان قهوه‌ت رو آماده کنم!",
@@ -46,7 +64,7 @@ keywords = {
     ]
 }
 
-# --- نرمال‌سازی ---
+# --- نرمال‌سازی متن ---
 def normalize_text(text):
     text = re.sub(r'[؟?!]', '', text)
     text = re.sub(r'\s+', ' ', text)
@@ -54,7 +72,7 @@ def normalize_text(text):
     text = text.replace('آ', 'ا')
     return text.strip().lower()
 
-# --- پیدا کردن پاسخ ---
+# --- پاسخ هوشمند ---
 def get_response(text):
     processed = normalize_text(text)
 
@@ -78,25 +96,44 @@ def get_response(text):
 
     return None
 
-# --- هندل پیام ---
+# --- هندل پیام اصلی ---
 def handle_message(update, context):
-    text = update.message.text
-    chat_id = update.message.chat_id
-    message_id = update.message.message_id
+    message = update.message
+    if not message or not message.text:
+        return
 
+    text = message.text
+    chat_id = message.chat_id
+    message_id = message.message_id
+
+    # پاسخ متنی
     response = get_response(text)
     if response:
         context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+
+    # واکنش با ایموجی
+    lowered_text = text.lower()
+    for word, emoji in emoji_reactions.items():
+        if word in lowered_text:
+            try:
+                context.bot.send_reaction(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    emoji=emoji
+                )
+                break
+            except Exception as e:
+                print(f"خطا در ری‌اکت: {e}")
 
 # --- ارور هندلر ---
 def error_handler(update, context):
     print(f"Error: {context.error}")
 
-# --- افزودن هندلرها ---
+# --- ثبت هندلرها ---
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_error_handler(error_handler)
 
-# --- روت‌ها ---
+# --- روت‌های فلاسک ---
 @app.route("/")
 def home():
     return "کافه آماده است!"
@@ -107,6 +144,6 @@ def webhook():
     dispatcher.process_update(update)
     return "ok"
 
-# --- اجرای اپ ---
+# --- اجرای برنامه ---
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
