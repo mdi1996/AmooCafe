@@ -1,31 +1,16 @@
-import os
 import re
-import random
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import Application, MessageHandler, ContextTypes, filters
+import telegram
+from telegram.ext import Dispatcher, MessageHandler, filters, CallbackContext
+import random
 
 TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
+bot = telegram.Bot(token=TOKEN)
+
 app = Flask(__name__)
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 
-# --- واکنش‌ها ---
-emoji_reactions = {
-    'سلام': '🫡',
-    'عشق': '❤️',
-    'دوست': '❤️',
-    'رفیق': '❤️',
-    'خوبی': '🥰',
-    'چخبر': '🤔',
-    'حبیبه': '🩵',
-    'ماهان': '😎',
-    'ایلار': '💜',
-    'آیدا': '🧡',
-    'ساحل': '💛',
-    'عمو': '☕',
-    'ابول': '😁',
-}
-
-# --- پاسخ‌های متنی ---
+# کلمات کلیدی و پاسخ‌ها
 keywords = {
     ("صبح بخیر", "صبحت بخیر", "صبح دل‌انگیز", "صبحت پر انرژی", "صبح شد", "صب بخیر"): [
         "صبحت بخیر رفیق کافه‌ای! وقتشه فنجان قهوه‌ت رو آماده کنم!",
@@ -61,7 +46,23 @@ keywords = {
     ]
 }
 
-# --- نرمال‌سازی ---
+reactions = {
+    'سلام': '🫡',
+    'عشق': '❤️',
+    'دوست': '❤️',
+    'رفیق': '❤️',
+    'خوبی': '🥰',
+    'چخبر': '🤔',
+    'حبیبه': '🩵',
+    'ماهان': '😎',
+    'ایلار': '💜',
+    'آیدا': '🧡',
+    'ساحل': '💛',
+    'عمو': '☕',
+    'ابول': '😁',
+}
+
+# نرمال‌سازی متن
 def normalize_text(text):
     text = re.sub(r'[؟?!]', '', text)
     text = re.sub(r'\s+', ' ', text)
@@ -69,7 +70,7 @@ def normalize_text(text):
     text = text.replace('آ', 'ا')
     return text.strip().lower()
 
-# --- پاسخ‌یابی ---
+# پاسخ‌دهی به کلیدواژه‌ها
 def get_response(text):
     processed = normalize_text(text)
 
@@ -90,57 +91,49 @@ def get_response(text):
         for keyword in key_group:
             if keyword in processed:
                 return random.choice(responses)
-
     return None
 
-# --- هندل پیام‌ها ---
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# هندل پیام
+def handle_message(update: telegram.Update, context: CallbackContext):
     message = update.message
-    if not message or not message.text:
-        return
-
     text = message.text
-    chat_id = message.chat.id
+    chat_id = message.chat_id
     message_id = message.message_id
 
-    # واکنش با ایموجی
-    lowered = text.lower()
-    for word, emoji in emoji_reactions.items():
-        if word in lowered:
-            try:
-                await context.bot.send_reaction(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    emoji=emoji
-                )
-                break
-            except Exception as e:
-                print(f"ری‌اکت نشد: {e}")
-
-    # پاسخ متنی
     response = get_response(text)
     if response:
-        await context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+        context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
 
-# --- ساخت اپلیکیشن تلگرام ---
-telegram_app = Application.builder().token(TOKEN).build()
-telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # واکنش ایموجی در گروه‌ها
+    if message and message.chat.type in ['group', 'supergroup']:
+        lowered = text.lower()
+        for word, emoji in reactions.items():
+            if word in lowered:
+                try:
+                    context.bot.send_reaction(chat_id=message.chat.id, message_id=message.message_id, emoji=emoji)
+                    break
+                except Exception as e:
+                    print(f'خطا در ری‌اکت: {e}')
 
-# --- روت‌های فلاسک ---
+# ارور هندلر
+def error_handler(update, context):
+    print(f"Error: {context.error}")
+
+# هندلرها
+dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+dispatcher.add_error_handler(error_handler)
+
+# روت‌ها
 @app.route("/")
 def home():
     return "کافه آماده‌ست!"
 
 @app.route(f"/{TOKEN}", methods=["POST"])
-async def webhook():
-    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-    await telegram_app.process_update(update)
+def webhook():
+    update = telegram.Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
     return "ok"
 
-# --- اجرای برنامه ---
+# اجرا
 if __name__ == "__main__":
-    telegram_app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        webhook_url=f"https://amoocafe.onrender.com/{TOKEN}"
-    )
+    app.run(host="0.0.0.0", port=5000)
