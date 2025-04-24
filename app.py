@@ -1,16 +1,48 @@
 import re
-from flask import Flask, request
-import telegram
-from telegram.ext import Dispatcher, MessageHandler, filters, CallbackContext
 import random
+import logging
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
+# --- تنظیمات ---
 TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
-bot = telegram.Bot(token=TOKEN)
+WEBHOOK_URL = f"https://amoocafe.onrender.com/{TOKEN}"
 
 app = Flask(__name__)
-dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+bot = Bot(token=TOKEN)
 
-# کلمات کلیدی و پاسخ‌ها
+# --- لیست ایموجی‌ها برای ری‌اکت ---
+reactions = {
+    'سلام': '🫡',
+    'عشق': '❤️',
+    'دوست': '❤️',
+    'رفیق': '❤️',
+    'خوبی': '🥰',
+    'چخبر': '🤔',
+    'حبیبه': '🩵',
+    'ماهان': '😎',
+    'ایلار': '💜',
+    'آیدا': '🧡',
+    'ساحل': '💛',
+    'عمو': '☕',
+    'ابول': '😁',
+    'کافه': '☕',
+    'شب': '🌙',
+    'صبح': '☀️',
+    'دل': '💔',
+    'غم': '😢',
+    'قهوه': '☕',
+    'چای': '🍵',
+    'شعر': '📝',
+    'کتاب': '📖',
+    'تنهایی': '🌧️',
+    'بارون': '🌧️',
+    'پاییز': '🍂',
+    'دوستی': '🤝',
+}
+
+# --- کلمات کلیدی و پاسخ‌ها ---
 keywords = {
     ("صبح بخیر", "صبحت بخیر", "صبح دل‌انگیز", "صبحت پر انرژی", "صبح شد", "صب بخیر"): [
         "صبحت بخیر رفیق کافه‌ای! وقتشه فنجان قهوه‌ت رو آماده کنم!",
@@ -43,26 +75,18 @@ keywords = {
     ("اصل",): [
         "اسمش نازنین ممده، ۶۰ سالشه از یه وری!",
         "چیکار به اصلش داری؟ فیکه رو گردنش زده made in china!",
-    ]
+    ],
+    ("دوستت دارم", "عاشقتم", "دوست دارم", "می‌خوامت"): [
+        "وای وای عاشق شدیم اینجا؟ قهوه‌ات رو آروم‌تر بخور عمو!",
+        "احساساتت قشنگه، بفرستش براش با قهوه داغ!",
+    ],
+    ("بارون", "بارونی", "بارندگی"): [
+        "بارون و قهوه... ترکیب جادویی دلِ شاعر!",
+        "هوای بارونی و یه میز کنار پنجره، کم داری؟",
+    ],
 }
 
-reactions = {
-    'سلام': '🫡',
-    'عشق': '❤️',
-    'دوست': '❤️',
-    'رفیق': '❤️',
-    'خوبی': '🥰',
-    'چخبر': '🤔',
-    'حبیبه': '🩵',
-    'ماهان': '😎',
-    'ایلار': '💜',
-    'آیدا': '🧡',
-    'ساحل': '💛',
-    'عمو': '☕',
-    'ابول': '😁',
-}
-
-# نرمال‌سازی متن
+# --- نرمال‌سازی ---
 def normalize_text(text):
     text = re.sub(r'[؟?!]', '', text)
     text = re.sub(r'\s+', ' ', text)
@@ -70,7 +94,7 @@ def normalize_text(text):
     text = text.replace('آ', 'ا')
     return text.strip().lower()
 
-# پاسخ‌دهی به کلیدواژه‌ها
+# --- پیدا کردن پاسخ ---
 def get_response(text):
     processed = normalize_text(text)
 
@@ -91,49 +115,47 @@ def get_response(text):
         for keyword in key_group:
             if keyword in processed:
                 return random.choice(responses)
+
     return None
 
-# هندل پیام
-def handle_message(update: telegram.Update, context: CallbackContext):
-    message = update.message
-    text = message.text
-    chat_id = message.chat_id
-    message_id = message.message_id
+# --- هندلر پیام ---
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    text = update.message.text
+    chat_id = update.message.chat_id
+    message_id = update.message.message_id
 
     response = get_response(text)
     if response:
-        context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+        await context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
 
-    # واکنش ایموجی در گروه‌ها
-    if message and message.chat.type in ['group', 'supergroup']:
-        lowered = text.lower()
-        for word, emoji in reactions.items():
-            if word in lowered:
-                try:
-                    context.bot.send_reaction(chat_id=message.chat.id, message_id=message.message_id, emoji=emoji)
-                    break
-                except Exception as e:
-                    print(f'خطا در ری‌اکت: {e}')
+    # --- واکنش با ایموجی ---
+    for word, emoji in reactions.items():
+        if word in text.lower():
+            try:
+                await context.bot.send_reaction(chat_id=chat_id, message_id=message_id, emoji=emoji)
+                break
+            except Exception as e:
+                print(f"خطا در ری‌اکت: {e}")
+            break
 
-# ارور هندلر
-def error_handler(update, context):
-    print(f"Error: {context.error}")
+# --- اپلیکیشن ---
+application = Application.builder().token(TOKEN).build()
+application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-# هندلرها
-dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-dispatcher.add_error_handler(error_handler)
+# --- مسیرهای Flask ---
+@app.route('/')
+def index():
+    return 'کافه روشنه!'
 
-# روت‌ها
-@app.route("/")
-def home():
-    return "کافه آماده‌ست!"
-
-@app.route(f"/{TOKEN}", methods=["POST"])
+@app.route(f'/{TOKEN}', methods=['POST'])
 def webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "ok"
+    update = Update.de_json(request.get_json(force=True), bot)
+    application.update_queue.put_nowait(update)
+    return 'ok'
 
-# اجرا
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(application.bot.set_webhook(WEBHOOK_URL))
+    app.run(host='0.0.0.0', port=5000)
