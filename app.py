@@ -1,44 +1,24 @@
 import os
-import re
 import random
+import re
+import asyncio
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
-# --- اطلاعات ربات ---
 TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
-WEBHOOK_URL = "https://amoocafe.onrender.com"
 
-# --- اپ فلسک ---
+# --- اپلیکیشن ---
 app = Flask(__name__)
+application = Application.builder().token(TOKEN).build()
 
-# --- اپلیکیشن تلگرام ---
-application = ApplicationBuilder().token(TOKEN).build()
-
-# --- واکنش‌ها ---
-reactions = {
-    'سلام': '🫡',
-    'عشق': '❤️',
-    'دوست': '❤️',
-    'رفیق': '❤️',
-    'خوبی': '🥰',
-    'چخبر': '🤔',
-    'حبیبه': '🩵',
-    'ماهان': '😎',
-    'ایلار': '💜',
-    'آیدا': '🧡',
-    'ساحل': '💛',
-    'عمو': '☕',
-    'ابول': '😁',
-}
-
-# --- کلمات کلیدی و پاسخ‌ها ---
+# --- کلمات کلیدی و پاسخ ها ---
 keywords = {
     ("صبح بخیر", "صبحت بخیر", "صبح دل انگیز", "صبحت پر انرژی", "صبح شد", "صب بخیر"): [
         "صبحت بخیر رفیق کافه‌ای! وقتشه فنجان قهوه‌ت رو آماده کنم!",
         "صبح شد و کافه بازه! بیا یه فنجون آرامش بزنیم!",
     ],
-    ("ظهر بخیر", "وقت ناهار", "ظهر شد", "نیم‌روز خوش", "ظهربخیر"): [
+    ("ظهر بخیر", "وقت ناهار", "ظهر شد", "نیم روز خوش", "ظهربخیر"): [
         "ظهر بخیر عزیز دلم! وقتشه یه قهوه سبک بزنیم وسط روز!",
         "ناهارتو خوردی؟ اگه نه بیا اینجا باهم ناهار بزنیم!",
     ],
@@ -68,7 +48,24 @@ keywords = {
     ]
 }
 
-# --- نرمال‌سازی ---
+# --- کلمات ری اکشن ---
+reactions = {
+    "سلام": "🫡",
+    "عشق": "❤️",
+    "دوست": "❤️",
+    "رفیق": "❤️",
+    "خوبی": "🥰",
+    "چخبر": "🤔",
+    "حبیبه": "🩵",
+    "ماهان": "😎",
+    "ایلار": "💜",
+    "آیدا": "🧡",
+    "ساحل": "💛",
+    "عمو": "☕",
+    "ابول": "😁",
+}
+
+# --- نرمال سازی متن ---
 def normalize_text(text):
     text = re.sub(r'[؟?!]', '', text)
     text = re.sub(r'\s+', ' ', text)
@@ -76,7 +73,7 @@ def normalize_text(text):
     text = text.replace('آ', 'ا')
     return text.strip().lower()
 
-# --- پیدا کردن پاسخ ---
+# --- دریافت پاسخ بر اساس کلمات ---
 def get_response(text):
     processed = normalize_text(text)
 
@@ -100,49 +97,45 @@ def get_response(text):
 
     return None
 
-# --- هندل پیام ---
+# --- هندل پیام ها ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
-    if not message or not message.text:
+    if not message:
         return
 
     text = message.text
-    chat_id = message.chat_id
+    chat_id = message.chat.id
     message_id = message.message_id
 
-    # ری‌اکت
-    for word, emoji in reactions.items():
-        if word in text:
-            try:
-                await message.react(emoji)
-                break
-            except Exception as e:
-                print(f"خطا در ری‌اکت: {e}")
-
-    # پاسخ
+    # پاسخ به کلمات کلیدی
     response = get_response(text)
     if response:
         await context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
 
-# --- ارور هندلر ---
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    print(f"Error: {context.error}")
+    # ری اکشن به بعضی کلمات
+    normalized_text = normalize_text(text)
+    for word, emoji in reactions.items():
+        if word in normalized_text:
+            try:
+                await message.react(emoji)
+                break
+            except Exception as e:
+                print(f"خطا در ارسال ری‌اکشن: {e}")
 
-# --- ثبت هندلر ---
+# --- اضافه کردن هندلر به اپ ---
 application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-application.add_error_handler(error_handler)
 
-# --- فلسک روت‌ها ---
+# --- روت‌های سرور ---
 @app.route("/")
 def home():
-    return "کافه آماده‌ست!"
+    return "کافه آنلاینه!"
 
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application.create_task(application.process_update(update))
+    asyncio.run(application.process_update(update))
     return "ok"
 
-# --- اجرای برنامه ---
+# --- اجرای سرور ---
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
