@@ -1,46 +1,12 @@
 import re
+import os
 import random
-import logging
 from flask import Flask, request
-from telegram import Update, Bot
-from telegram.ext import Application, ContextTypes, MessageHandler, filters
+from telegram import Update
+from telegram.ext import Application, MessageHandler, ContextTypes, filters
 
-# --- تنظیمات ---
 TOKEN = "7532659685:AAFJytrCeABPZGxYQ7Ahf5DRx4sD0Q3mUKU"
-WEBHOOK_URL = f"https://amoocafe.onrender.com/{TOKEN}"
-
-app = Flask(__name__)
-bot = Bot(token=TOKEN)
-
-# --- لیست ایموجی‌ها برای ری‌اکت ---
-reactions = {
-    'سلام': '🫡',
-    'عشق': '❤️',
-    'دوست': '❤️',
-    'رفیق': '❤️',
-    'خوبی': '🥰',
-    'چخبر': '🤔',
-    'حبیبه': '🩵',
-    'ماهان': '😎',
-    'ایلار': '💜',
-    'آیدا': '🧡',
-    'ساحل': '💛',
-    'عمو': '☕',
-    'ابول': '😁',
-    'کافه': '☕',
-    'شب': '🌙',
-    'صبح': '☀️',
-    'دل': '💔',
-    'غم': '😢',
-    'قهوه': '☕',
-    'چای': '🍵',
-    'شعر': '📝',
-    'کتاب': '📖',
-    'تنهایی': '🌧️',
-    'بارون': '🌧️',
-    'پاییز': '🍂',
-    'دوستی': '🤝',
-}
+WEBHOOK_URL = "https://amoocafe.onrender.com/" + TOKEN
 
 # --- کلمات کلیدی و پاسخ‌ها ---
 keywords = {
@@ -75,18 +41,27 @@ keywords = {
     ("اصل",): [
         "اسمش نازنین ممده، ۶۰ سالشه از یه وری!",
         "چیکار به اصلش داری؟ فیکه رو گردنش زده made in china!",
-    ],
-    ("دوستت دارم", "عاشقتم", "دوست دارم", "می‌خوامت"): [
-        "وای وای عاشق شدیم اینجا؟ قهوه‌ات رو آروم‌تر بخور عمو!",
-        "احساساتت قشنگه، بفرستش براش با قهوه داغ!",
-    ],
-    ("بارون", "بارونی", "بارندگی"): [
-        "بارون و قهوه... ترکیب جادویی دلِ شاعر!",
-        "هوای بارونی و یه میز کنار پنجره، کم داری؟",
-    ],
+    ]
 }
 
-# --- نرمال‌سازی ---
+# --- کلمات و ایموجی‌های ری‌اکشن ---
+reactions = {
+    'سلام': '🫡',
+    'عشق': '❤️',
+    'دوست': '❤️',
+    'رفیق': '❤️',
+    'خوبی': '🥰',
+    'چخبر': '🤔',
+    'حبیبه': '🩵',
+    'ماهان': '😎',
+    'ایلار': '💜',
+    'آیدا': '🧡',
+    'ساحل': '💛',
+    'عمو': '☕',
+    'ابول': '😁',
+}
+
+# --- نرمال‌سازی متن ---
 def normalize_text(text):
     text = re.sub(r'[؟?!]', '', text)
     text = re.sub(r'\s+', ' ', text)
@@ -118,44 +93,57 @@ def get_response(text):
 
     return None
 
-# --- هندلر پیام ---
+# --- مدیریت پیام‌ها ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-    text = update.message.text
-    chat_id = update.message.chat_id
-    message_id = update.message.message_id
+    message = update.message
+    if message:
+        text = message.text
+        chat_id = message.chat_id
+        message_id = message.message_id
 
-    response = get_response(text)
-    if response:
-        await context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+        # ری‌اکشن اگر شامل کلمه‌ای بود
+        for word, emoji in reactions.items():
+            if word in text:
+                try:
+                    await message.react(emoji)
+                    break
+                except Exception as e:
+                    print(f"خطا در ری‌اکت: {e}")
 
-    # --- واکنش با ایموجی ---
-    for word, emoji in reactions.items():
-        if word in text.lower():
-            try:
-                await context.bot.send_reaction(chat_id=chat_id, message_id=message_id, emoji=emoji)
-                break
-            except Exception as e:
-                print(f"خطا در ری‌اکت: {e}")
-            break
+        # پاسخ به کلمات کلیدی
+        response = get_response(text)
+        if response:
+            await context.bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
 
-# --- اپلیکیشن ---
-application = Application.builder().token(TOKEN).build()
-application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+# --- مدیریت خطاها ---
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"Error: {context.error}")
 
-# --- مسیرهای Flask ---
-@app.route('/')
-def index():
-    return 'کافه روشنه!'
+# --- ساخت اپ Flask ---
+app = Flask(__name__)
 
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    application.update_queue.put_nowait(update)
-    return 'ok'
+@app.route("/")
+def home():
+    return "کافه آماده‌ست!"
 
-if __name__ == '__main__':
+@app.route(f"/{TOKEN}", methods=["POST"])
+async def webhook():
+    update = Update.de_json(await request.get_json(force=True), context.application.bot)
+    await context.application.process_update(update)
+    return "ok"
+
+# --- ران کردن اپلیکیشن ---
+if __name__ == "__main__":
+    from telegram.ext import ApplicationBuilder
+
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    application.add_error_handler(error_handler)
+
+    # ست کردن وبهوک
     import asyncio
-    asyncio.run(application.bot.set_webhook(WEBHOOK_URL))
-    app.run(host='0.0.0.0', port=5000)
+    async def main():
+        await application.bot.set_webhook(WEBHOOK_URL)
+        app.run(host="0.0.0.0", port=5000)
+
+    asyncio.run(main())
